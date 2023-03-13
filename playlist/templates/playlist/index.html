@@ -1,0 +1,302 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <link rel="stylesheet" type="text/css" href="{% static 'playlist/bootstrap.min.css' %}">
+        <link rel="stylesheet" type="text/css" href="{% static 'playlist/style.css' %}">
+        <script src="{% static 'playlist/jquery-3.4.1.min.js' %}"></script>
+        <script src="{% static 'playlist/bootstrap.bundle.min.js' %}"></script>
+        <title>Yandex Music Playlist</title>
+    </head>
+    <body>
+        <div id="_search" class="container p-1">
+            {% include "playlist/_search.html" %}
+        </div>
+        <div id="_list" class="container p-1">
+            {% include "playlist/_list.html" %}
+        </div>
+        <div id="player" class="container p-1 fixed-bottom">
+            <div class="row align-items-center">
+                <div id="title" class="col m-1"></div>
+            </div>
+            <div class="row align-items-center justify-content-between">
+                <audio id="audio"></audio>
+                <div class="col-1 m-1">
+                    <img class="play" src="{% static 'playlist/icons/play.ico' %}">
+                </div>
+                <div class="col-1 m-1">
+                    <img class="pause" src="{% static 'playlist/icons/pause.ico' %}">
+                </div>
+                <div class="col-1 m-1">
+                    <img class="next" src="{% static 'playlist/icons/next.ico' %}">
+                </div>
+                <div class="col m-1">
+                    <input class="position" type="range" min="0" max="1" step="0.0001" value="0">
+                </div>
+                <div class="col-2 m-1">
+                    <p class="time">0:00/0:00</p>
+                </div>
+                <div class="col-1 m-1">
+                    <img class="unmute" src="{% static 'playlist/icons/unmute.ico' %}">
+                </div>
+                <div class="col-1 m-1">
+                    <img class="mute" src="{% static 'playlist/icons/mute.ico' %}">
+                </div>
+                <div class="col-1 m-1">
+                    <input class="volume" type="range" min="0" max="1" step="0.01" value="1">
+                </div>
+            </div>
+        </div>
+        <script>
+            let elements = {
+                title: $('#title'),
+                audio: $('#audio'),
+                play: $('img.play'),
+                pause: $('img.pause'),
+                next: $('img.next'),
+                position: $('input.position'),
+                time: $('p.time'),
+                unmute: $('img.unmute'),
+                mute: $('img.mute'),
+                volume: $('input.volume')
+            };
+
+            elements.pause.parent().hide();
+            elements.unmute.parent().hide();
+            elements.position.val(0);
+            elements.volume.val(1);
+
+            let total = function() {
+                return $('div.index').length;
+            };
+
+            let current_title = function() {
+                return $('div.artist').get(0).innerText + ' - ' +
+                       $('div.title').get(0).innerText;
+            };
+
+            let current_url = function() {
+                return $('a.url').attr('href');
+            };
+
+            let current_time = function() {
+               let current = elements.audio.get(0).currentTime;
+               let current_min = Math.floor(current/60);
+               let current_sec = Math.floor(current-current_min*60);
+               let duration = !isNaN(elements.audio.get(0).duration) ?
+                              elements.audio.get(0).duration : 0;
+               let duration_min = Math.floor(duration/60);
+               let duration_sec = Math.floor(duration-duration_min*60);
+               return current_min + ':' +
+                      (current_sec < 10 ? '0'+current_sec : current_sec) + '/' +
+                      duration_min + ':' +
+                      (duration_sec < 10 ? '0'+duration_sec : duration_sec);
+            };
+
+            let current_position = function() {
+                let current = elements.audio.get(0).currentTime;
+                let total = elements.audio.get(0).duration;
+                return isNaN(total) ? 0 : current/total;
+            };
+
+            let current_id = function() {
+                return $('img.delete').attr('name') ? $('img.delete').attr('name') : 0;
+            };
+
+            let previous_exists = function() {
+                return $('img.delete[name='+previous_id+']').length == 1;
+            };
+
+            let previous_id = 0;
+            let current_volume = 1;
+
+            let play = async function() {
+                elements.play.parent().hide();
+                elements.pause.parent().show();
+                if (!elements.audio.attr('src')) {
+                    elements.title.text(current_title());
+                    elements.audio.attr('src', current_url());
+                    previous_id = current_id();
+                }
+                elements.time.text(current_time());
+                try {
+                    await elements.audio.get(0).play();
+                } catch(error) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '{% url 'update-url' %}',
+                        data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'id': previous_id},
+                        success: function (data) {
+                            $('#_list').html(data);
+                            elements.audio.attr('src', current_url());
+                            elements.audio.get(0).play();
+                        }
+                    });
+                }
+                $('title').text(current_title());
+            }
+
+            let play_next = async function() {
+                let paused = elements.audio.get(0).paused;
+                elements.title.text(current_title());
+                elements.audio.attr('src', current_url());
+                elements.time.text(current_time());
+                if (!paused) {
+                    try {
+                        await elements.audio.get(0).play();
+                    } catch(error) {
+                        $.ajax({
+                            type: 'POST',
+                            url: '{% url 'update-url' %}',
+                            data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'id': current_id()},
+                            success: function (data) {
+                                $('#_list').html(data);
+                                elements.audio.attr('src', current_url());
+                                elements.audio.get(0).play();
+                            }
+                        });
+                    }
+                    $('title').text(current_title());
+                }
+                previous_id = current_id();
+            }
+
+            let rotate = async function() {
+                elements.title.text(current_title());
+                elements.audio.attr('src', current_url());
+                elements.time.text(current_time());
+                try {
+                    await elements.audio.get(0).play();
+                } catch(error) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '{% url 'update-url' %}',
+                        data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'id': current_id()},
+                        success: function (data) {
+                            $('#_list').html(data);
+                            elements.audio.attr('src', current_url());
+                            elements.audio.get(0).play();
+                        }
+                    });
+                }
+                $('title').text(current_title());
+                previous_id = current_id();
+            }
+
+            elements.audio.on('timeupdate', function() {
+                elements.time.text(current_time());
+                elements.position.val(current_position());
+            });
+
+            elements.audio.on('ended', function() {
+                if (total() > 0) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '{% url 'update' %}',
+                        data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'id': previous_id},
+                        success: function (data) {
+                            $('#_list').html(data);
+                            rotate();
+                        }
+                    });
+                }
+            });
+
+            elements.play.click(function() {
+                if (total() > 0) {
+                    play();
+                }
+            });
+
+            elements.pause.click(function() {
+                elements.pause.parent().hide();
+                elements.play.parent().show();
+                elements.audio.get(0).pause();
+                $('title').text('Yandex Music Playlist');
+            });
+
+            elements.next.click(function() {
+                if (total() > 0 && elements.audio.attr('src')) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '{% url 'update' %}',
+                        data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'id': previous_id},
+                        success: function (data) {
+                            $('#_list').html(data);
+                            play_next();
+                        }
+                    });
+                }
+            });
+
+            elements.position.change(function() {
+                if (elements.audio.attr('src')) {
+                    let position = $(this).val();
+                    elements.audio.get(0).currentTime = position * elements.audio.get(0).duration;
+                } else {
+                    $(this).val(0);
+                }
+            });
+
+            elements.mute.click(function() {
+                elements.mute.parent().hide();
+                elements.unmute.parent().show();
+                current_volume = elements.audio.get(0).volume;
+                elements.audio.get(0).volume = 0;
+                elements.volume.val(0);
+            });
+
+            elements.unmute.click(function() {
+                elements.unmute.parent().hide();
+                elements.mute.parent().show();
+                elements.audio.get(0).volume = current_volume;
+                elements.volume.val(current_volume);
+            });
+
+            elements.volume.change(function() {
+                let volume = $(this).val();
+                elements.audio.get(0).volume = volume;
+                if (volume == 0) {
+                    elements.mute.parent().hide();
+                    elements.unmute.parent().show();
+                } else {
+                    elements.unmute.parent().hide();
+                    elements.mute.parent().show();
+                }
+            });
+
+            setInterval(function() {
+                $.ajax({
+                    url: '{% url 'update' %}',
+                    success: function (data) {
+                        $('#_list').html(data);
+                        if (elements.audio.attr('src') && !previous_exists())
+                        {
+                            let paused = elements.audio.get(0).paused;
+                            if (total() > 0) {
+                                elements.title.text(current_title());
+                                elements.audio.attr('src', current_url());
+                                elements.time.text(current_time());
+                                if (!paused) {
+                                    elements.audio.get(0).play();
+                                    $('title').text(current_title());
+                                }
+                                previous_id = current_id();
+                            } else {
+                                elements.title.text('');
+                                elements.audio.attr('src', '');
+                                elements.audio.get(0).currentTime = 0;
+                                elements.position.val(0);
+                                elements.time.text('0:00/0:00');
+                                if (!paused) {
+                                    $('img.pause').parent().hide();
+                                    $('img.play').parent().show();
+                                    $('title').text('Yandex Music Playlist');
+                                }
+                            }
+                        }
+                    }
+                });
+            }, 5000)
+        </script>
+    </body>
+</html>

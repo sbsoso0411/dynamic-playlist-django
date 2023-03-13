@@ -1,0 +1,104 @@
+{% load static %}
+{% if track_list %}
+<div class="row align-items-center">
+    <div class="col-1 m-1">#</div>
+    <div class="col m-1">Title</div>
+    <div class="col m-1">Artist</div>
+    <div class="col-1 m-1"></div>
+    <div class="col-1 m-1"></div>
+    <div class="col-1 m-1"></div>
+    <div class="col-1 m-1"></div>
+    <div class="col-1 m-1"></div>
+</div>
+{% for track in track_list %}
+<div id="track{{ forloop.counter }}" class="row align-items-center">
+    <div class="index col-1 m-1">{{ forloop.counter }}</div>
+    <div class="title col m-1">{{ track.title }}</div>
+    <div class="artist col m-1">{{ track.artists|join:", " }}</div>
+    <div class="col-1" hidden>
+        <a name="{{ track.id }}" class="url" href="{{ track.url }}"></a>
+    </div>
+    <div id="track_down" class="col-1 m-1">
+        {% if request.session.user_id not in track.voices_down %}
+        <img name="{{ track.id }}" class="down" src="{% static 'playlist/icons/down.ico' %}">
+        {% endif %}
+    </div>
+    <div id="track_rate" class="col-1 m-1 text-center">{{ track.rate }}</div>
+    <div id="track_up" class="col-1 m-1">
+        {% if request.session.user_id not in track.voices_up %}
+        <img name="{{ track.id }}" class="up" src="{% static 'playlist/icons/up.ico' %}">
+        {% endif %}
+    </div>
+    <div id="track_delete" class="col-1 m-1"><img name="{{ track.id }}" class="delete" src="{% static 'playlist/icons/delete.ico' %}"></div>
+    <div class="duration col-1 m-1">{{ track.duration_string }}</div>
+</div>
+{% endfor %}
+{% endif %}
+<script>
+    down_buttons = $('img.down');
+    up_buttons = $('img.up');
+    delete_buttons = $('img.delete');
+
+    down_buttons.each(function () {
+        $(this).click(function () {
+            $.ajax({
+                type: 'POST',
+                url: '{% url 'vote' %}',
+                data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'vote': 'down', 'id': $(this).attr('name')},
+                success: function(data) {
+                    $('#_list').html(data);
+                }
+            });
+        });
+    });
+
+    up_buttons.each(function () {
+        $(this).click(function () {
+            $.ajax({
+                type: 'POST',
+                url: '{% url 'vote' %}',
+                data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'vote': 'up', 'id': $(this).attr('name')},
+                success: function(data) {
+                    $('#_list').html(data);
+                }
+            });
+        });
+    });
+
+    delete_buttons.each(function () {
+        $(this).click(function () {
+            let delete_id = $(this).attr('name');
+            let current_id = previous_id;
+            $.ajax({
+                type: 'POST',
+                url: '{% url 'delete' %}',
+                data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'id': $(this).attr('name')},
+                success: function(data) {
+                    $('#_list').html(data);
+                    let paused = $('#audio').get(0).paused;
+                    if ($('div.index').length == 0) {
+                        $('#title').text('');
+                        $('#audio').attr('src', '');
+                        $('#audio').get(0).currentTime = 0;
+                        $('input.position').val(0);
+                        $('p.time').text('0:00/0:00');
+                        if (!paused) {
+                            $('img.pause').parent().hide();
+                            $('img.play').parent().show();
+                            $('title').text('Yandex Music Playlist');
+                        }
+                    } else if (current_id == delete_id) {
+                        $('#title').text($('div.artist').get(0).innerText + ' - ' +
+                                         $('div.title').get(0).innerText);
+                        $('#audio').attr('src', $('a.url').attr('href'));
+                        $('p.time').text('0:00/'+$('div.duration').get(0).innerText);
+                        if (!paused) {
+                            $('#audio').get(0).play();
+                            $('title').text(current_title());
+                        }
+                    }
+                }
+            });
+        });
+    });
+</script>

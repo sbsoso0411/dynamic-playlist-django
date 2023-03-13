@@ -1,0 +1,100 @@
+{% load static %}
+<div class="row align-items-center">
+    <input id="search" list="_suggestion" type="text" name="text" placeholder="Search" class="col m-1" autocomplete="off">
+    <datalist id="_suggestion">
+        {% include 'playlist/_suggestion.html' %}
+    </datalist>
+</div>
+{% if results %}
+<div class="row align-items-center">
+    <div class="col m-1">Title</div>
+    <div class="col m-1">Artist</div>
+    <div class="col m-1">Album</div>
+    <div class="col-1 m-1"></div>
+    <div class="col-1 m-1"></div>
+</div>
+{% for track in results %}
+<div class="row align-items-center">
+    <div class="col m-1">{{ track.title }}</div>
+    <div class="col m-1">{{ track.artists|join:", " }}</div>
+    <div class="col m-1">{{ track.album }}</div>
+    <div class="col-1 m-1"><img name="{{ track.id }}" class="add" src="{% static 'playlist/icons/add.ico' %}"></div>
+    <div class="col-1 m-1">{{ track.duration }}</div>
+</div>
+{% endfor %}
+<div class="row">
+    {% if page|add:0 != 0 %}
+        <button class="pagination col-1 m-1 d-inline-block btn-dark" name="0">First</button>
+    {% endif %}
+    {% for _ in ''|center:total %}
+        {% if forloop.counter0 == page|add:0 %}
+            <div class="col-1 m-1 text-center">{{ forloop.counter }}</div>
+        {% elif forloop.counter0 < page|add:3 and forloop.counter0 > page|add:-3 %}
+            <button class="pagination col-1 m-1 d-inline-block btn-dark" name="{{ forloop.counter0 }}">{{ forloop.counter }}</button>
+        {% endif %}
+    {% endfor %}
+    {% if page|add:0 != total|add:-1 %}
+        <button class="pagination col-1 m-1 d-inline-block btn-dark" name="{{ total|add:-1 }}">Last</button>
+    {% endif %}
+</div>
+{% endif %}
+<script>
+    search_input = $('#search');
+    add_buttons = $('img.add');
+    pagination_buttons = $('button.pagination');
+    if (typeof query == 'undefined') {
+        let query = '';
+    }
+
+    search_input.keypress(function(event) {
+        if (event.key == "Enter") {
+            $.ajax({
+                url: '{% url 'search' %}',
+                data: {'text': search_input.val()},
+                success: function(data) {
+                    query = search_input.val();
+                    $('#_search').html(data);
+                }
+            });
+        } else {
+            $.ajax({
+                url: '{% url 'autocomplete' %}',
+                data: {'query': search_input.get(0).value},
+                success: function(data) {
+                    $('#_suggestion').html(data);
+                }
+            });
+        }
+    });
+
+    add_buttons.each(function () {
+        $(this).click(function () {
+            $.ajax({
+                type: 'POST',
+                url: '{% url 'add' %}',
+                data: {'csrfmiddlewaretoken': '{{ csrf_token }}', 'id': $(this).attr('name')},
+                success: function(data) {
+                    $('#_list').html(data);
+                }
+            });
+            $.ajax({
+                url: '{% url 'clear' %}',
+                success: function(data) {
+                    $('#_search').html(data);
+                }
+            });
+        });
+    });
+
+    pagination_buttons.each(function () {
+        $(this).click(function () {
+            $.ajax({
+                url: '{% url 'search' %}',
+                data: {'text': query, 'page': $(this).attr('name')},
+                success: function(data) {
+                    $('#_search').html(data);
+                }
+            });
+        });
+    });
+</script>
