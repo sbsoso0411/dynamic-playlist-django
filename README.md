@@ -41,11 +41,6 @@ Run server.
 python3 manage.py runserver 0.0.0.0:8000
 ```
 
-## Built With
-
-* [Django](https://www.djangoproject.com/) - The web framework used
-* [yandex-music-api](https://github.com/MarshalX/yandex-music-api/) - Used to get audio tracks
-
 ## License
 
 This project is licensed under the GNU General Public License - see the [LICENSE](LICENSE) file for details
